@@ -1,0 +1,59 @@
+{
+  "dxt_version": "0.1",
+  "name": "etsy-mcp",
+  "display_name": "Etsy Shop Manager",
+  "version": "1.4.0",
+  "description": "Manage Etsy shop listings: search, create drafts (physical or digital), set required category attributes, fix prices through the correct inventory endpoint, upload images and files, and publish, straight from Claude. Automatically refreshes its own access token.",
+  "long_description": "Connects Claude to the Etsy Open API v3 for your own shop. Read tools (shop lookup, listing search, taxonomy, shipping profiles) work with just your API key. Write tools (create draft listings, set properties, update price, upload images/files, publish, delete) additionally require an OAuth access token with listings_w scope.\n\nOnce you provide a refresh token (from the one-time OAuth authorization script), the server keeps its own access token fresh automatically: it refreshes proactively before the cached token expires, and again reactively if a call ever comes back with an expired-token error. The refreshed token pair is cached in a file next to the server on disk, so it survives restarts without you ever touching this config again — no more re-running the OAuth script every time the access token expires.\n\nChangelog:\n1.4.0 - Added automatic access token refresh. New ETSY_REFRESH_TOKEN config field. The server now maintains its own token cache file (.etsy-token-cache.json, next to index.js) and refreshes the access token proactively (within 5 minutes of expiry) and reactively (on a 401 invalid_token/expired response), persisting the rotated refresh token Etsy returns each time. No behavior change if ETSY_REFRESH_TOKEN is left blank — the server falls back to the static ETSY_OAUTH_TOKEN as before.\n1.3.1 - Fixed update_listing_price sending its PUT to the wrong path (it included /shops/{shop_id}, which the real updateListingInventory endpoint does not use) and getting a 404 from Etsy on every call. The correct path is /listings/{listing_id}/inventory, matching get_listing_inventory.\n1.3.0 - Added update_listing_price, which changes price (and optionally quantity) through the listing's inventory/offerings endpoint. Etsy silently ignores price and quantity sent to the plain update_listing PATCH endpoint for most listings; those fields have been removed from update_listing's schema and body since they never did anything there.\n1.2.0 - Added get_taxonomy_properties (what product properties a category requires/allows, with their valid value_ids), get_listing_properties (what's currently set on a listing and what's still missing), and update_listing_property (set a required property like Craft type, Occasion, Holiday, Color, Size). Several categories, including Clip Art & Image Files, reject publish until a required property like Craft type is set, which create_draft_listing alone cannot do.\n1.1.0 - create_draft_listing now takes an explicit listing_type ('physical' | 'download' | 'both'). Digital/download listings no longer require a shipping_profile_id or trip the 'readiness_state_id required' error. Added upload_listing_file for attaching the actual digital deliverable (PDF/SVG/PNG/zip) to a download listing. search_taxonomy now accepts an optional query/parent_id filter so it doesn't blow past response size limits on the full category tree.\n1.0.1 - Attach the OAuth bearer token on every authenticated call (not just calls flagged needsWrite), since Etsy's per-endpoint scope requirements don't cleanly follow a read/write split (e.g. get_shipping_profiles needs shops_r on the OAuth token despite being a GET).\n1.0.0 - Initial release.",
+  "author": {
+    "name": "Matt Mueller"
+  },
+  "server": {
+    "type": "node",
+    "entry_point": "index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/index.js"
+      ],
+      "env": {
+        "ETSY_TOKEN": "${user_config.etsy_token}",
+        "ETSY_OAUTH_TOKEN": "${user_config.etsy_oauth_token}",
+        "ETSY_REFRESH_TOKEN": "${user_config.etsy_refresh_token}",
+        "ETSY_SHOP_ID": "${user_config.etsy_shop_id}"
+      }
+    }
+  },
+  "user_config": {
+    "etsy_token": {
+      "type": "string",
+      "title": "Etsy API key (keystring:shared_secret)",
+      "description": "From the Etsy Developer Portal (Your Apps). Format: <keystring>:<shared_secret>, joined with a colon. Powers all read tools, and its keystring half is also used as the client_id for automatic token refresh.",
+      "required": true,
+      "sensitive": true
+    },
+    "etsy_oauth_token": {
+      "type": "string",
+      "title": "Etsy OAuth access token",
+      "description": "OAuth 2.0 token with listings_w scope (listings_d too if you want delete_listing). Needed for creating/publishing/deleting listings, uploading images or files, and updating price. Only used to seed the token cache on first run if you also provide a refresh token below — after that, the cached (and auto-refreshed) token takes over.",
+      "required": false,
+      "sensitive": true
+    },
+    "etsy_refresh_token": {
+      "type": "string",
+      "title": "Etsy OAuth refresh token (enables auto-refresh)",
+      "description": "From the same one-time OAuth authorization script that gave you the access token above. When set, the server refreshes its own access token automatically as it nears or hits expiry, so you should not need to run that script again. Etsy rotates this token on every use; the server saves the new one to its own cache file automatically.",
+      "required": false,
+      "sensitive": true
+    },
+    "etsy_shop_id": {
+      "type": "string",
+      "title": "Default shop ID (optional)",
+      "description": "Your Etsy shop's numeric ID, so you don't have to pass it on every call.",
+      "required": false,
+      "sensitive": false
+    }
+  },
+  "license": "UNLICENSED",
+  "keywords": ["etsy", "ecommerce", "listings", "digital-downloads"]
+}
