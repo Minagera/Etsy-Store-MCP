@@ -73,7 +73,21 @@ async function saveTokenCache(cache) {
   }
 }
 
+// Concurrent tool calls can each see the same near-expiry cached token and
+// race to refresh it. Etsy rotates the refresh token on every use, so the
+// loser of that race would exchange an already-invalidated refresh token.
+// Sharing one in-flight promise means every caller awaits the same exchange.
+let refreshInFlight = null;
+
 async function refreshAccessToken() {
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = doRefreshAccessToken().finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
+}
+
+async function doRefreshAccessToken() {
   const cache = await loadTokenCache();
   if (!cache || !cache.refresh_token) {
     throw new Error(
@@ -215,6 +229,36 @@ async function etsyFetch(path, { method = "GET", needsWrite = false, body, isFor
   return json;
 }
 
+// Multipart (file upload) counterpart to etsyFetch — same reactive
+// refresh-and-retry-once behavior on an expired token, which a plain fetch
+// call would otherwise surface as a raw 401 to the caller.
+async function etsyFetchMultipart(path, form, { _retried = false } = {}) {
+  const headers = await authHeaders({ needsWrite: true });
+  // Do not set Content-Type manually — fetch sets the multipart boundary.
+  const res = await fetch(`${BASE_URL}${path}`, { method: "POST", headers, body: form });
+  const text = await res.text();
+  let json;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    json = { raw: text };
+  }
+  if (!res.ok) {
+    const looksExpired =
+      res.status === 401 &&
+      (json?.error === "invalid_token" || /expired/i.test(json?.error_description || ""));
+    if (looksExpired && !_retried) {
+      const cache = await loadTokenCache();
+      if (cache && cache.refresh_token) {
+        await refreshAccessToken();
+        return etsyFetchMultipart(path, form, { _retried: true });
+      }
+    }
+    throw new Error(`Etsy API ${res.status}: ${JSON.stringify(json)}`);
+  }
+  return json;
+}
+
 async function etsyUploadImage(shopId, listingId, imagePath, opts = {}) {
   const accessToken = await getValidAccessToken();
   if (!accessToken) {
@@ -229,23 +273,7 @@ async function etsyUploadImage(shopId, listingId, imagePath, opts = {}) {
   const fileName = imagePath.split(/[\\/]/).pop() || "image";
   form.append("image", new Blob([fileBuffer]), fileName);
 
-  const headers = await authHeaders({ needsWrite: true });
-  // Do not set Content-Type manually — fetch sets the multipart boundary.
-  const res = await fetch(
-    `${BASE_URL}/shops/${shopId}/listings/${listingId}/images`,
-    { method: "POST", headers, body: form }
-  );
-  const text = await res.text();
-  let json;
-  try {
-    json = JSON.parse(text);
-  } catch {
-    json = { raw: text };
-  }
-  if (!res.ok) {
-    throw new Error(`Etsy API ${res.status}: ${JSON.stringify(json)}`);
-  }
-  return json;
+  return etsyFetchMultipart(`/shops/${shopId}/listings/${listingId}/images`, form);
 }
 
 const TOOLS = [
@@ -365,6 +393,9 @@ const TOOLS = [
       "who_made ('i_did'|'collective'|'someone_else'), when_made (e.g. 'made_to_order', '2020_2024'), " +
       "taxonomy_id, is_supply (boolean), listing_type ('physical'|'download'|'both'). " +
       "shipping_profile_id is required when listing_type is 'physical' or 'both'; omit it for 'download'. " +
+      "Some shops (those using Etsy's production-partner / made-to-order readiness flow) additionally " +
+      "require readiness_state_id for 'physical' or 'both' listings — Etsy rejects the draft without it " +
+      "if your shop is set up that way; leave it out otherwise. " +
       "Draft listings are not visible until published and have no images or digital files yet — " +
       "for a 'download' or 'both' listing, attach the deliverable file with upload_listing_file after creating the draft.",
     inputSchema: {
@@ -388,6 +419,12 @@ const TOOLS = [
             "'both' offers a physical version and a digital version of the same listing and needs shipping_profile_id too.",
         },
         shipping_profile_id: { type: "number" },
+        readiness_state_id: {
+          type: "number",
+          description:
+            "Only needed if your shop uses Etsy's production-partner/made-to-order readiness flow; " +
+            "Etsy will otherwise reject 'physical' or 'both' drafts without it. Omit for shops that don't use it.",
+        },
         tags: { type: "array", items: { type: "string" } },
         materials: { type: "array", items: { type: "string" } },
       },
@@ -588,12 +625,31 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         result = await etsyFetch(`/seller-taxonomy/nodes/${args.taxonomy_id}/properties`);
         break;
 
-      case "get_listing_properties":
-        result = await etsyFetch(
-          `/shops/${shop(args.shop_id)}/listings/${args.listing_id}/properties`,
-          { needsWrite: true }
+      case "get_listing_properties": {
+        const listing = await etsyFetch(`/listings/${args.listing_id}`);
+        const taxonomyId = listing.taxonomy_id;
+        const [taxonomyProps, listingProps] = await Promise.all([
+          taxonomyId !== undefined && taxonomyId !== null
+            ? etsyFetch(`/seller-taxonomy/nodes/${taxonomyId}/properties`)
+            : Promise.resolve({ results: [] }),
+          etsyFetch(
+            `/shops/${shop(args.shop_id)}/listings/${args.listing_id}/properties`,
+            { needsWrite: true }
+          ),
+        ]);
+        const setPropertyIds = new Set(
+          (listingProps.results || []).map((p) => p.property_id)
         );
+        const missingRequired = (taxonomyProps.results || [])
+          .filter((p) => p.is_required && !setPropertyIds.has(p.property_id))
+          .map((p) => ({ property_id: p.property_id, name: p.name }));
+        result = {
+          taxonomy_id: taxonomyId,
+          properties: listingProps.results || [],
+          missing_required: missingRequired,
+        };
         break;
+      }
 
       case "create_draft_listing": {
         // Mirror Etsy's own API default (physical) when the caller doesn't
@@ -623,6 +679,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
         if (listingType !== "download") {
           body.shipping_profile_id = args.shipping_profile_id;
+          if (args.readiness_state_id !== undefined) {
+            body.readiness_state_id = args.readiness_state_id;
+          }
         }
         result = await etsyFetch(`/shops/${shop(args.shop_id)}/listings`, {
           method: "POST",
@@ -656,22 +715,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         form.append("name", fileName);
         form.append("file", new Blob([fileBuffer]), fileName);
 
-        const headers = await authHeaders({ needsWrite: true });
-        const res = await fetch(
-          `${BASE_URL}/shops/${shop(args.shop_id)}/listings/${args.listing_id}/files`,
-          { method: "POST", headers, body: form }
+        result = await etsyFetchMultipart(
+          `/shops/${shop(args.shop_id)}/listings/${args.listing_id}/files`,
+          form
         );
-        const text = await res.text();
-        let json;
-        try {
-          json = JSON.parse(text);
-        } catch {
-          json = { raw: text };
-        }
-        if (!res.ok) {
-          throw new Error(`Etsy API ${res.status}: ${JSON.stringify(json)}`);
-        }
-        result = json;
         break;
       }
 
