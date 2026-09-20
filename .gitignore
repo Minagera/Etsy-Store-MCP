@@ -1,0 +1,3 @@
+node_modules/
+.etsy-token-cache.json
+*.dxt
