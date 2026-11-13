@@ -22,7 +22,7 @@ function html(body: string, status = 200, headers?: Headers): Response {
   const h = headers ?? new Headers();
   h.set("Content-Type", "text/html; charset=utf-8");
   h.set("Cache-Control", "no-store");
-  h.set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'");
+  h.set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self' https://www.etsy.com https://claude.ai; frame-ancestors 'none'");
   h.set("X-Frame-Options", "DENY");
   return new Response(body, { status, headers: h });
 }
