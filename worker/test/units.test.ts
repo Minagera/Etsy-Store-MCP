@@ -186,6 +186,36 @@ describe("tools", () => {
     expect(urls.join(" ")).not.toContain("/listings/active");
   });
 
+  it("update_listing sends taxonomy_id to move a listing's category", async () => {
+    const kv = new MemoryKV();
+    await seed(kv, Date.now() + 30 * 60_000);
+    const { fetchImpl, calls } = fakeEtsy();
+    const client = new EtsyClient(env(kv), fetchImpl);
+    await callTool("update_listing", { listing_id: "4616150598", taxonomy_id: 12479 }, client, fetchImpl);
+    const call = calls.find((c) => c.url.includes("/listings/4616150598"))!;
+    expect(call.method).toBe("PATCH");
+    expect(call.url).toBe("https://openapi.etsy.com/v3/application/shops/12345678/listings/4616150598");
+    const form = new URLSearchParams(String(call.body));
+    expect(form.get("taxonomy_id")).toBe("12479");
+    expect(form.has("title")).toBe(false);
+    await expect(
+      callTool("update_listing", { listing_id: "4616150598", taxonomy_id: "12x" }, client, fetchImpl)
+    ).rejects.toThrow(/numeric/);
+  });
+
+  it("delete_listing_property sends DELETE to the property path", async () => {
+    const kv = new MemoryKV();
+    await seed(kv, Date.now() + 30 * 60_000);
+    const { fetchImpl, calls } = fakeEtsy();
+    const client = new EtsyClient(env(kv), fetchImpl);
+    await callTool("delete_listing_property", { listing_id: "4578731315", property_id: 47626759760 }, client, fetchImpl);
+    const call = calls.find((c) => c.url.includes("/properties/"))!;
+    expect(call.method).toBe("DELETE");
+    expect(call.url).toBe(
+      "https://openapi.etsy.com/v3/application/shops/12345678/listings/4578731315/properties/47626759760"
+    );
+  });
+
   it("get_active_listings defaults to 25 and offset 0", async () => {
     const kv = new MemoryKV();
     await seed(kv, Date.now() + 30 * 60_000);
