@@ -12,16 +12,16 @@
     {
       // From `npx wrangler kv namespace create etsy-mcp-oauth`
       "binding": "OAUTH_KV",
-      "id": "REPLACE_ME_KV_NAMESPACE_ID"
+      "id": "2939e995e3af4222b2b76dba58afe243"
     }
   ],
 
   "vars": {
     // Your Etsy shop's numeric ID. Only this shop's owner can connect.
-    "ETSY_SHOP_ID": "REPLACE_ME_SHOP_ID",
+    "ETSY_SHOP_ID": "67999211",
     // The address this Worker is served from, no trailing slash. After the first
     // deploy, wrangler prints it (https://etsy-mcp.<your-subdomain>.workers.dev).
-    "PUBLIC_URL": "https://etsy-mcp.REPLACE_ME.workers.dev",
+    "PUBLIC_URL": "https://etsy-mcp.minagera.workers.dev",
     // Scopes asked of Etsy. Add transactions_r later if you want order tools.
     "ETSY_SCOPES": "listings_r listings_w listings_d shops_r"
   },
