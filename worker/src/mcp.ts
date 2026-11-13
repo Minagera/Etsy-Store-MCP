@@ -23,7 +23,10 @@ export function buildServer(env: Env, fetchImpl: typeof fetch = defaultFetch): S
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args = {} } = request.params;
     try {
-      const result = await callTool(name, args as Record<string, unknown>, etsy, fetchImpl);
+      const result = await callTool(name, args as Record<string, unknown>, etsy, fetchImpl, {
+        repo: env.GITHUB_FILES_REPO,
+        token: env.GITHUB_TOKEN,
+      });
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     } catch (err: any) {
       const message = err instanceof EtsyReauthRequired ? err.message : `Error: ${err?.message || String(err)}`;

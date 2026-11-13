@@ -8,7 +8,7 @@
 
 import { defaultFetch } from "./fetch";
 import { EtsyClient } from "./etsy";
-import { loadFile } from "./files";
+import { loadFile, type GitHubFiles } from "./files";
 
 type Json = Record<string, any>;
 
@@ -151,13 +151,15 @@ export const TOOLS: ToolDef[] = [
   {
     name: "upload_listing_image",
     description:
-      "Attach an image to a listing, from an https URL (a direct link to the image file) or base64 content. A listing needs at least one image before it can be published. Max 20 MB.",
+      "Attach an image to a listing, from an https URL (a direct link to the image file), base64 content, or github_path (a file in the server's private files repo). A listing needs at least one image before it can be published. Max 20 MB.",
     inputSchema: {
       type: "object",
       properties: {
         listing_id: { type: "string" },
         image_url: { type: "string", description: "https:// direct link to the image file." },
         image_base64: { type: "string", description: "Base64 image bytes (or a data: URL), for small images." },
+        github_path: { type: "string", description: "Path of the file in the server's private files repo, e.g. etsy-products/file.pdf." },
+        github_ref: { type: "string", description: "Branch, tag or commit for github_path. Defaults to the repo's default branch." },
         file_name: { type: "string" },
         rank: { type: "number" },
         alt_text: { type: "string" },
@@ -169,13 +171,15 @@ export const TOOLS: ToolDef[] = [
   {
     name: "upload_listing_file",
     description:
-      "Attach the digital file a buyer receives (PDF, SVG, PNG, zip, etc.) to a 'download' or 'both' listing, from an https URL (a direct download link) or base64 content. Max 20 MB.",
+      "Attach the digital file a buyer receives (PDF, SVG, PNG, zip, etc.) to a 'download' or 'both' listing, from an https URL (a direct download link), base64 content, or github_path (a file in the server's private files repo, for files too big for base64 that shouldn't be public). Max 20 MB.",
     inputSchema: {
       type: "object",
       properties: {
         listing_id: { type: "string" },
         file_url: { type: "string", description: "https:// direct download link." },
         file_base64: { type: "string", description: "Base64 file bytes (or a data: URL), for small files." },
+        github_path: { type: "string", description: "Path of the file in the server's private files repo, e.g. etsy-products/file.pdf." },
+        github_ref: { type: "string", description: "Branch, tag or commit for github_path. Defaults to the repo's default branch." },
         name: { type: "string", description: "File name the buyer sees." },
         rank: { type: "number" },
       },
@@ -269,7 +273,8 @@ export async function callTool(
   name: string,
   args: Json,
   etsy: EtsyClient,
-  fetchImpl: typeof fetch = defaultFetch
+  fetchImpl: typeof fetch = defaultFetch,
+  github: GitHubFiles = {}
 ): Promise<unknown> {
   const shopId = etsy.shopId;
   switch (name) {
@@ -385,7 +390,12 @@ export async function callTool(
 
     case "upload_listing_image": {
       const listingId = id(args.listing_id, "listing_id");
-      const file = await loadFile({ url: args.image_url, base64: args.image_base64, name: args.file_name }, fetchImpl);
+      const file = await loadFile(
+        { url: args.image_url, base64: args.image_base64, githubPath: args.github_path, githubRef: args.github_ref, name: args.file_name },
+        fetchImpl,
+        undefined,
+        github
+      );
       return etsy.request(`/shops/${shopId}/listings/${listingId}/images`, {
         method: "POST",
         multipart: () => {
@@ -400,7 +410,12 @@ export async function callTool(
 
     case "upload_listing_file": {
       const listingId = id(args.listing_id, "listing_id");
-      const file = await loadFile({ url: args.file_url, base64: args.file_base64, name: args.name }, fetchImpl);
+      const file = await loadFile(
+        { url: args.file_url, base64: args.file_base64, githubPath: args.github_path, githubRef: args.github_ref, name: args.name },
+        fetchImpl,
+        undefined,
+        github
+      );
       return etsy.request(`/shops/${shopId}/listings/${listingId}/files`, {
         method: "POST",
         multipart: () => {
