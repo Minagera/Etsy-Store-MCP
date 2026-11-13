@@ -136,6 +136,13 @@ What's different in the hosted version:
   `image_base64`) and `upload_listing_file` takes `file_url` (or
   `file_base64`), since a hosted server can't read paths on your computer.
   Links have to be direct downloads over https, up to 20 MB.
+- **Private files from GitHub.** Both upload tools also take `github_path`
+  (and an optional `github_ref` branch, tag or commit) to read a file from one
+  private repo, set by the `GITHUB_FILES_REPO` var in `wrangler.jsonc`. That
+  covers files too big for base64 that shouldn't sit at a public link, like the
+  PDFs a buyer pays for. It needs a `GITHUB_TOKEN` secret that can read that
+  repo (`npx wrangler secret put GITHUB_TOKEN`). The worker only ever does a GET
+  on that one repo's contents, and only for plain relative paths.
 - **New `get_shop_listings` tool** lists drafts, inactive, sold out or expired
   listings, not just active ones.
 

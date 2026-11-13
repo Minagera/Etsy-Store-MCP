@@ -24,6 +24,15 @@ export interface Env {
   /** Var, optional. Space-separated Etsy OAuth scopes to request. */
   ETSY_SCOPES?: string;
 
+  /**
+   * Var, optional. "owner/repo" of the one private GitHub repo that
+   * upload_listing_file and upload_listing_image may read with github_path.
+   */
+  GITHUB_FILES_REPO?: string;
+
+  /** Secret, optional. GitHub token that can read GITHUB_FILES_REPO. Only used for github_path. */
+  GITHUB_TOKEN?: string;
+
   /** Injected by OAuthProvider into the default handler. */
   OAUTH_PROVIDER: OAuthHelpers;
 }

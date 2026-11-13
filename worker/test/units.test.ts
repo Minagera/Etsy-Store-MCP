@@ -96,6 +96,56 @@ describe("files by URL", () => {
   });
 });
 
+describe("files from the private GitHub repo", () => {
+  const gh = { repo: "Owner/files-repo", token: "ghtest" };
+  function ghFetch() {
+    const calls: { url: string; init?: RequestInit }[] = [];
+    const fetchImpl = (async (input: any, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, init });
+      if (url.includes("/missing.pdf")) return new Response("nope", { status: 404 });
+      return new Response(new Uint8Array([5, 6, 7]), { status: 200 });
+    }) as typeof fetch;
+    return { fetchImpl, calls };
+  }
+
+  it("reads a file with the token and raw media type", async () => {
+    const { fetchImpl, calls } = ghFetch();
+    const f = await loadFile({ githubPath: "etsy-products/My_File.pdf", githubRef: "claude/branch-1" }, fetchImpl, undefined, gh);
+    expect([...f.bytes]).toEqual([5, 6, 7]);
+    expect(f.name).toBe("My_File.pdf");
+    expect(f.contentType).toBe("application/pdf");
+    expect(calls[0].url).toBe(
+      "https://api.github.com/repos/Owner/files-repo/contents/etsy-products/My_File.pdf?ref=claude%2Fbranch-1"
+    );
+    const h = calls[0].init?.headers as Record<string, string>;
+    expect(h.Authorization).toBe("Bearer ghtest");
+    expect(h.Accept).toBe("application/vnd.github.raw");
+  });
+
+  it("refuses paths that climb out or look like URLs", async () => {
+    const { fetchImpl, calls } = ghFetch();
+    for (const p of ["../secret", "a/../../b", "/etc/passwd", "https://evil.example/x", "a//b"]) {
+      await expect(loadFile({ githubPath: p }, fetchImpl, undefined, gh)).rejects.toThrow(/github_path/);
+    }
+    expect(calls).toHaveLength(0);
+  });
+
+  it("explains when it isn't set up", async () => {
+    const { fetchImpl } = ghFetch();
+    await expect(loadFile({ githubPath: "x.pdf" }, fetchImpl, undefined, {})).rejects.toThrow(/GITHUB_TOKEN/);
+  });
+
+  it("reports a missing file plainly", async () => {
+    const { fetchImpl } = ghFetch();
+    await expect(loadFile({ githubPath: "missing.pdf" }, fetchImpl, undefined, gh)).rejects.toThrow(/Not found/);
+  });
+
+  it("takes only one source", async () => {
+    await expect(loadFile({ githubPath: "x.pdf", url: "https://a.example/x.pdf" }, undefined, undefined, gh)).rejects.toThrow(/only one/);
+  });
+});
+
 describe("tools", () => {
   it("rejects non-numeric IDs before calling Etsy", async () => {
     const kv = new MemoryKV();

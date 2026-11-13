@@ -23,7 +23,10 @@
     // deploy, wrangler prints it (https://etsy-mcp.<your-subdomain>.workers.dev).
     "PUBLIC_URL": "https://etsy-mcp.minagera.workers.dev",
     // Scopes asked of Etsy. Add transactions_r later if you want order tools.
-    "ETSY_SCOPES": "listings_r listings_w listings_d shops_r"
+    "ETSY_SCOPES": "listings_r listings_w listings_d shops_r",
+    // The one private repo upload_listing_file / upload_listing_image may read
+    // with github_path. Needs the GITHUB_TOKEN secret: `npx wrangler secret put GITHUB_TOKEN`.
+    "GITHUB_FILES_REPO": "Minagera/heartland-homestead-ops"
   },
 
   "observability": { "enabled": true }
