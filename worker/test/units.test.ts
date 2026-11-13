@@ -120,4 +120,30 @@ describe("tools", () => {
       )
     ).rejects.toThrow(/shipping_profile_id/);
   });
+
+  it("get_active_listings uses the same shop listings path as get_shop_listings with state active", async () => {
+    const kv = new MemoryKV();
+    await seed(kv, Date.now() + 30 * 60_000);
+    const { fetchImpl, calls } = fakeEtsy();
+    const client = new EtsyClient(env(kv), fetchImpl);
+    await callTool("get_active_listings", { limit: 7, offset: 14 }, client, fetchImpl);
+    await callTool("get_shop_listings", { state: "active", limit: 7, offset: 14 }, client, fetchImpl);
+    const urls = calls.filter((c) => c.url.includes("/listings")).map((c) => c.url);
+    expect(urls).toEqual([
+      "https://openapi.etsy.com/v3/application/shops/12345678/listings?state=active&limit=7&offset=14",
+      "https://openapi.etsy.com/v3/application/shops/12345678/listings?state=active&limit=7&offset=14",
+    ]);
+    expect(urls.join(" ")).not.toContain("/listings/active");
+  });
+
+  it("get_active_listings defaults to 25 and offset 0", async () => {
+    const kv = new MemoryKV();
+    await seed(kv, Date.now() + 30 * 60_000);
+    const { fetchImpl, calls } = fakeEtsy();
+    const client = new EtsyClient(env(kv), fetchImpl);
+    await callTool("get_active_listings", {}, client, fetchImpl);
+    expect(calls.find((c) => c.url.includes("/listings"))!.url).toBe(
+      "https://openapi.etsy.com/v3/application/shops/12345678/listings?state=active&limit=25&offset=0"
+    );
+  });
 });
