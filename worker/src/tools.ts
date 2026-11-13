@@ -186,7 +186,8 @@ export const TOOLS: ToolDef[] = [
   {
     name: "update_listing",
     description:
-      "Update title, description, tags, or state on a listing (state 'active' publishes a draft that has at least one image or file). " +
+      "Update title, description, tags, state or auto-renew on a listing (state 'active' publishes a draft that has at least one image or file). " +
+      "should_auto_renew true makes Etsy renew the listing when it expires, for the usual listing fee. " +
       "Does not change price or quantity: use update_listing_price for that.",
     inputSchema: {
       type: "object",
@@ -196,6 +197,7 @@ export const TOOLS: ToolDef[] = [
         description: { type: "string" },
         tags: { type: "array", items: { type: "string" } },
         state: { type: "string", enum: ["active", "inactive", "draft"] },
+        should_auto_renew: { type: "boolean" },
       },
       required: ["listing_id"],
     },
@@ -414,7 +416,13 @@ export async function callTool(
     case "update_listing":
       return etsy.request(`/shops/${shopId}/listings/${id(args.listing_id, "listing_id")}`, {
         method: "PATCH",
-        form: { title: args.title, description: args.description, tags: args.tags, state: args.state },
+        form: {
+          title: args.title,
+          description: args.description,
+          tags: args.tags,
+          state: args.state,
+          should_auto_renew: args.should_auto_renew,
+        },
       });
 
     case "delete_listing":
