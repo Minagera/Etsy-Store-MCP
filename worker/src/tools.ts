@@ -48,7 +48,7 @@ export const TOOLS: ToolDef[] = [
   },
   {
     name: "get_active_listings",
-    description: "List this shop's active listings.",
+    description: "List this shop's active listings. Same as get_shop_listings with state 'active'.",
     inputSchema: {
       type: "object",
       properties: { limit: { type: "number" }, offset: { type: "number" } },
@@ -244,6 +244,15 @@ function id(value: unknown, field: string): string {
   return s;
 }
 
+/**
+ * Both get_active_listings and get_shop_listings go through this one path.
+ * Etsy's /shops/{id}/listings/active returned no results for this shop while
+ * /shops/{id}/listings?state=active returned all of them.
+ */
+function shopListingsPath(shopId: string, state: string, args: Json): string {
+  return `/shops/${shopId}/listings?state=${state}&limit=${limitParam(args.limit, 25)}&offset=${offsetParam(args.offset)}`;
+}
+
 function limitParam(n: unknown, fallback: number): number {
   const v = Number(n);
   return Number.isFinite(v) && v > 0 ? Math.min(Math.floor(v), 100) : fallback;
@@ -274,18 +283,14 @@ export async function callTool(
       );
 
     case "get_active_listings":
-      return etsy.request(
-        `/shops/${shopId}/listings/active?limit=${limitParam(args.limit, 25)}&offset=${offsetParam(args.offset)}`
-      );
+      return etsy.request(shopListingsPath(shopId, "active", args));
 
     case "get_shop_listings": {
       const state = String(args.state || "");
       if (!["active", "inactive", "sold_out", "draft", "expired"].includes(state)) {
         throw new Error("state must be one of active, inactive, sold_out, draft, expired.");
       }
-      return etsy.request(
-        `/shops/${shopId}/listings?state=${state}&limit=${limitParam(args.limit, 25)}&offset=${offsetParam(args.offset)}`
-      );
+      return etsy.request(shopListingsPath(shopId, state, args));
     }
 
     case "get_listing":
