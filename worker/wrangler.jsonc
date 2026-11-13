@@ -1,0 +1,30 @@
+{
+  // Etsy Store MCP as a Cloudflare Worker. See ../README.md "Hosting on Cloudflare".
+  // Placeholders below are marked REPLACE_ME. Secrets never go in this file:
+  // set ETSY_TOKEN with `npx wrangler secret put ETSY_TOKEN`.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "etsy-mcp",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+
+  "kv_namespaces": [
+    {
+      // From `npx wrangler kv namespace create etsy-mcp-oauth`
+      "binding": "OAUTH_KV",
+      "id": "REPLACE_ME_KV_NAMESPACE_ID"
+    }
+  ],
+
+  "vars": {
+    // Your Etsy shop's numeric ID. Only this shop's owner can connect.
+    "ETSY_SHOP_ID": "REPLACE_ME_SHOP_ID",
+    // The address this Worker is served from, no trailing slash. After the first
+    // deploy, wrangler prints it (https://etsy-mcp.<your-subdomain>.workers.dev).
+    "PUBLIC_URL": "https://etsy-mcp.REPLACE_ME.workers.dev",
+    // Scopes asked of Etsy. Add transactions_r later if you want order tools.
+    "ETSY_SCOPES": "listings_r listings_w listings_d shops_r"
+  },
+
+  "observability": { "enabled": true }
+}

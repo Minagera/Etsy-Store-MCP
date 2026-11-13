@@ -116,10 +116,114 @@ Without `ETSY_REFRESH_TOKEN`, the server falls back to the static
   (e.g. Craft type, Occasion, Color).
 - `delete_listing` *(requires `listings_d`)* — permanently delete a listing.
 
+## Hosting on Cloudflare (remote connector)
+
+The `worker/` folder is the same server built as a Cloudflare Worker, so you
+can add it to Claude as a custom connector and use it from anywhere (Claude
+on the web, the phone app, cloud sessions) instead of only from the computer
+running `node index.js`. The local stdio server above is unchanged.
+
+What's different in the hosted version:
+
+- **Sign-in through Etsy.** Connecting it in Claude shows a consent page, then
+  sends you to Etsy to sign in. The server checks that the Etsy account that
+  signed in owns `ETSY_SHOP_ID` and refuses anyone else. There's no separate
+  password to manage.
+- **Tokens live in Cloudflare KV**, saved when you sign in and refreshed
+  automatically. No token cache file, and no OAuth script to run by hand.
+- **One shop only.** Shop-scoped tools no longer take a `shop_id`.
+- **Images and files by URL.** `upload_listing_image` takes `image_url` (or
+  `image_base64`) and `upload_listing_file` takes `file_url` (or
+  `file_base64`), since a hosted server can't read paths on your computer.
+  Links have to be direct downloads over https, up to 20 MB.
+- **New `get_shop_listings` tool** lists drafts, inactive, sold out or expired
+  listings, not just active ones.
+
+### Setup
+
+You need Node 20 or newer and a Cloudflare account. All commands run from the
+`worker/` folder.
+
+1. **Install and log in.**
+
+   ```bash
+   cd worker
+   npm install
+   npx wrangler login
+   ```
+
+2. **Create the KV namespace** and paste the `id` it prints into
+   `wrangler.jsonc` in place of `REPLACE_ME_KV_NAMESPACE_ID`.
+
+   ```bash
+   npx wrangler kv namespace create etsy-mcp-oauth
+   ```
+
+3. **Fill in the two vars in `wrangler.jsonc`:** `ETSY_SHOP_ID` (your shop's
+   numeric ID) and `PUBLIC_URL`. The Worker's address is
+   `https://etsy-mcp.<your-subdomain>.workers.dev`; your subdomain is shown in
+   the Cloudflare dashboard under Workers & Pages. No trailing slash.
+
+4. **Set the Etsy API key as a secret.** Paste `<keystring>:<shared_secret>`
+   when it asks. It never goes in a file.
+
+   ```bash
+   npx wrangler secret put ETSY_TOKEN
+   ```
+
+5. **Deploy.**
+
+   ```bash
+   npx wrangler deploy
+   ```
+
+   Open `PUBLIC_URL` in a browser. It should say `etsy-mcp is running`.
+
+6. **Register the callback with Etsy.** In the Etsy developer portal, open
+   your app and add this callback URL (it has to match exactly):
+
+   ```
+   https://etsy-mcp.<your-subdomain>.workers.dev/etsy/callback
+   ```
+
+7. **Add it to Claude.** Settings, Connectors, Add custom connector. Use the
+   URL `https://etsy-mcp.<your-subdomain>.workers.dev/mcp` and leave the
+   OAuth client fields empty. Click Connect, approve the consent page, and sign
+   in to Etsy as the shop owner.
+
+To use a domain of your own instead of workers.dev, add a custom domain to the
+Worker in the Cloudflare dashboard, then change `PUBLIC_URL`, the Etsy
+callback URL, and the connector URL to match, and deploy again.
+
+### If something goes wrong
+
+- **"Etsy access has lapsed"** in a tool result: the Etsy refresh token
+  expired or was revoked. Disconnect and reconnect the connector in Claude.
+- **"That Etsy account doesn't own the shop"**: you signed in to Etsy as a
+  different account, or `ETSY_SHOP_ID` is wrong.
+- **Etsy shows an error about the redirect URI**: the callback URL in the
+  Etsy app doesn't exactly match `PUBLIC_URL` plus `/etsy/callback`.
+- Logs: `npx wrangler tail`.
+
+### Developing
+
+```bash
+cp .dev.vars.example .dev.vars   # then fill in ETSY_TOKEN
+npm run typecheck
+npm test
+npm run dev                      # http://localhost:8787
+```
+
+The tests run the whole connect flow (registration, consent, Etsy sign-in,
+token exchange) and the MCP endpoint against an in-memory KV and a fake Etsy,
+so they need no keys or network.
+
 ## Security notes
 
-- Never commit `ETSY_TOKEN`, `ETSY_OAUTH_TOKEN`, `ETSY_REFRESH_TOKEN`, or
-  `.etsy-token-cache.json`. All are gitignored by default in this repo.
+- Never commit `ETSY_TOKEN`, `ETSY_OAUTH_TOKEN`, `ETSY_REFRESH_TOKEN`,
+  `.etsy-token-cache.json`, or `worker/.dev.vars`. All are gitignored by
+  default in this repo. On Cloudflare, `ETSY_TOKEN` is a Worker secret and
+  the OAuth tokens live in KV.
 - If a refresh or access token is ever exposed (e.g. pasted into a chat or
   committed by mistake), revoke it from the Etsy Developer Portal and
   re-run the OAuth flow immediately.

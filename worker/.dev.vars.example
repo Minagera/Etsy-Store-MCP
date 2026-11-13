@@ -1,0 +1,3 @@
+# Copy to .dev.vars for `npm run dev`. Never commit .dev.vars.
+ETSY_TOKEN=REPLACE_ME_KEYSTRING:REPLACE_ME_SHARED_SECRET
+PUBLIC_URL=http://localhost:8787

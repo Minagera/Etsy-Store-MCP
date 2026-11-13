@@ -1,3 +1,6 @@
 node_modules/
 .etsy-token-cache.json
 *.dxt
+.wrangler/
+.dev.vars*
+!.dev.vars.example
