@@ -4,6 +4,7 @@
 // /authorize flow sends him through Etsy's own OAuth and saves what comes
 // back), and refreshed here as it nears expiry.
 
+import { defaultFetch } from "./fetch";
 import type { Env } from "./env";
 
 export const ETSY_BASE_URL = "https://openapi.etsy.com/v3/application";
@@ -63,7 +64,7 @@ export function tokensFromResponse(json: any, previous?: EtsyTokens | null): Ets
 // spending the same refresh token twice.
 let refreshInFlight: Promise<string> | null = null;
 
-export function refreshAccessToken(env: Env, current: EtsyTokens, fetchImpl: typeof fetch = fetch): Promise<string> {
+export function refreshAccessToken(env: Env, current: EtsyTokens, fetchImpl: typeof fetch = defaultFetch): Promise<string> {
   if (refreshInFlight) return refreshInFlight;
   refreshInFlight = doRefresh(env, current, fetchImpl).finally(() => {
     refreshInFlight = null;
@@ -100,7 +101,7 @@ async function doRefresh(env: Env, current: EtsyTokens, fetchImpl: typeof fetch)
   throw new Error(`Etsy token refresh failed: ${res.status} ${JSON.stringify(json)}`);
 }
 
-export async function getValidAccessToken(env: Env, fetchImpl: typeof fetch = fetch): Promise<string> {
+export async function getValidAccessToken(env: Env, fetchImpl: typeof fetch = defaultFetch): Promise<string> {
   const tokens = await loadTokens(env);
   if (!tokens) throw new EtsyReauthRequired("No Etsy tokens stored yet. Connect this server in Claude to sign in to Etsy.");
   const fiveMinutes = 5 * 60 * 1000;
@@ -134,7 +135,7 @@ export interface EtsyRequest {
 }
 
 export class EtsyClient {
-  constructor(private env: Env, private fetchImpl: typeof fetch = fetch) {}
+  constructor(private env: Env, private fetchImpl: typeof fetch = defaultFetch) {}
 
   get shopId(): string {
     return this.env.ETSY_SHOP_ID;

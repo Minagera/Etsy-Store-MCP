@@ -6,6 +6,7 @@
 // - Images and digital files come in as an https URL or base64, not a local path.
 // - get_shop_listings is new: lists drafts, inactive or expired listings too.
 
+import { defaultFetch } from "./fetch";
 import { EtsyClient } from "./etsy";
 import { loadFile } from "./files";
 
@@ -257,7 +258,7 @@ export async function callTool(
   name: string,
   args: Json,
   etsy: EtsyClient,
-  fetchImpl: typeof fetch = fetch
+  fetchImpl: typeof fetch = defaultFetch
 ): Promise<unknown> {
   const shopId = etsy.shopId;
   switch (name) {

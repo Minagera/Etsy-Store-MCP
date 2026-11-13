@@ -1,6 +1,8 @@
 // Images and digital files arrive as an https URL or as base64, because a
 // hosted server can't read paths on Matt's computer.
 
+import { defaultFetch } from "./fetch";
+
 /** Our own cap per file. Big enough for listing photos and most digital downloads. */
 export const MAX_FILE_BYTES = 20 * 1024 * 1024;
 
@@ -57,7 +59,7 @@ async function readCapped(res: Response, max: number): Promise<Uint8Array> {
   return out;
 }
 
-export async function loadFile(src: FileSource, fetchImpl: typeof fetch = fetch, max = MAX_FILE_BYTES): Promise<LoadedFile> {
+export async function loadFile(src: FileSource, fetchImpl: typeof fetch = defaultFetch, max = MAX_FILE_BYTES): Promise<LoadedFile> {
   if (src.url && src.base64) throw new Error("Pass either a URL or base64 content, not both.");
   if (src.base64) {
     const bytes = decodeBase64(src.base64);

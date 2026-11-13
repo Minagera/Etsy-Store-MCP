@@ -9,6 +9,7 @@
 // So signing in to Etsy as the shop owner is what proves it's Matt. Anyone
 // else who reaches the page gets as far as Etsy and is refused at step 3.
 
+import { defaultFetch } from "./fetch";
 import { AuthorizationError, CimdFetchError, authorizationErrorRedirect } from "@cloudflare/workers-oauth-provider";
 import type { ConsentDescription } from "@cloudflare/workers-oauth-provider";
 import { DEFAULT_ETSY_SCOPES, MCP_SCOPE, publicOrigin, type Env, type GrantProps } from "./env";
@@ -184,7 +185,7 @@ export function makeDefaultHandler(fetchImpl?: typeof fetch) {
         if (url.pathname === "/authorize" && request.method === "GET") return await handleAuthorizeGet(request, env);
         if (url.pathname === "/authorize" && request.method === "POST") return await handleAuthorizePost(request, env);
         if (url.pathname === ETSY_CALLBACK_PATH && request.method === "GET") {
-          return await handleEtsyCallback(request, env, fetchImpl ?? fetch);
+          return await handleEtsyCallback(request, env, fetchImpl ?? defaultFetch);
         }
         if (url.pathname === "/" || url.pathname === "/health") {
           return new Response("etsy-mcp is running. Add /mcp as a custom connector in Claude.\n", {
