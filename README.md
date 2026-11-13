@@ -107,13 +107,16 @@ Without `ETSY_REFRESH_TOKEN`, the server falls back to the static
 - `upload_listing_image` — attach an image to a listing.
 - `upload_listing_file` — attach the digital deliverable to a `download`/
   `both` listing.
-- `update_listing` — update title, description, tags, or state (e.g.
-  publish a draft). Does not change price/quantity — use
+- `update_listing` — update title, description, tags, category
+  (`taxonomy_id`), or state (e.g. publish a draft). Does not change
+  price/quantity — use
   `update_listing_price` instead.
 - `update_listing_price` — change price (and optionally quantity) through
   the listing's inventory/offerings endpoint.
 - `update_listing_property` — set a required or optional product property
   (e.g. Craft type, Occasion, Color).
+- `delete_listing_property` — remove one property from a listing (e.g. a
+  Craft type that doesn't fit).
 - `delete_listing` *(requires `listings_d`)* — permanently delete a listing.
 
 ## Hosting on Cloudflare (remote connector)

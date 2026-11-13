@@ -190,7 +190,8 @@ export const TOOLS: ToolDef[] = [
   {
     name: "update_listing",
     description:
-      "Update title, description, tags, state or auto-renew on a listing (state 'active' publishes a draft that has at least one image or file). " +
+      "Update title, description, tags, category (taxonomy_id), state or auto-renew on a listing (state 'active' publishes a draft that has at least one image or file). " +
+      "Changing taxonomy_id moves the listing to another category; properties that don't exist in the new category may need setting again. " +
       "should_auto_renew true makes Etsy renew the listing when it expires, for the usual listing fee. " +
       "Does not change price or quantity: use update_listing_price for that.",
     inputSchema: {
@@ -200,6 +201,7 @@ export const TOOLS: ToolDef[] = [
         title: { type: "string" },
         description: { type: "string" },
         tags: { type: "array", items: { type: "string" } },
+        taxonomy_id: { type: "number" },
         state: { type: "string", enum: ["active", "inactive", "draft"] },
         should_auto_renew: { type: "boolean" },
       },
@@ -227,6 +229,18 @@ export const TOOLS: ToolDef[] = [
         values: { type: "array", items: { type: "string" } },
       },
       required: ["listing_id", "property_id", "value_ids"],
+    },
+    annotations: WRITE,
+  },
+  {
+    name: "delete_listing_property",
+    description:
+      "Remove one product property (e.g. a wrong Craft type) from a listing by property_id. Use get_listing_properties to see what's set. " +
+      "It can be set again with update_listing_property.",
+    inputSchema: {
+      type: "object",
+      properties: { listing_id: { type: "string" }, property_id: { type: "number" } },
+      required: ["listing_id", "property_id"],
     },
     annotations: WRITE,
   },
@@ -435,6 +449,7 @@ export async function callTool(
           title: args.title,
           description: args.description,
           tags: args.tags,
+          taxonomy_id: args.taxonomy_id !== undefined ? id(args.taxonomy_id, "taxonomy_id") : undefined,
           state: args.state,
           should_auto_renew: args.should_auto_renew,
         },
@@ -451,6 +466,12 @@ export async function callTool(
         { method: "PUT", form }
       );
     }
+
+    case "delete_listing_property":
+      return etsy.request(
+        `/shops/${shopId}/listings/${id(args.listing_id, "listing_id")}/properties/${id(args.property_id, "property_id")}`,
+        { method: "DELETE" }
+      );
 
     case "update_listing_price": {
       const listingId = id(args.listing_id, "listing_id");

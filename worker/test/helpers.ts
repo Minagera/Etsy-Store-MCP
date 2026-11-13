@@ -77,6 +77,12 @@ export function fakeEtsy(opts: EtsyFakeOptions = {}) {
     if (url.startsWith(`https://openapi.etsy.com/v3/application/shops/${shopId}/listings/`) && url.endsWith("/images")) {
       return json({ listing_image_id: 9, ok: true }, 201);
     }
+    if (url.startsWith(`https://openapi.etsy.com/v3/application/shops/${shopId}/listings/`) && url.includes("/properties/") && method === "DELETE") {
+      return new Response(null, { status: 204 });
+    }
+    if (/^https:\/\/openapi\.etsy\.com\/v3\/application\/shops\/\d+\/listings\/\d+$/.test(url) && method === "PATCH") {
+      return json({ listing_id: Number(url.split("/").pop()), ok: true });
+    }
     if (url.startsWith(`https://openapi.etsy.com/v3/application/shops/${shopId}/listings?state=`)) {
       return json({ count: 1, results: [{ listing_id: 5, state: "draft" }] });
     }
