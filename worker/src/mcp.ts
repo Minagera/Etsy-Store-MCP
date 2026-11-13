@@ -4,6 +4,7 @@
 // Stateless Streamable HTTP: each POST gets a fresh server and transport, and
 // responses come back as plain JSON. No Durable Objects needed.
 
+import { defaultFetch } from "./fetch";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
@@ -13,7 +14,7 @@ import { TOOLS, callTool } from "./tools";
 
 export const SERVER_VERSION = "2.0.0";
 
-export function buildServer(env: Env, fetchImpl: typeof fetch = fetch): Server {
+export function buildServer(env: Env, fetchImpl: typeof fetch = defaultFetch): Server {
   const server = new Server({ name: "etsy-mcp", version: SERVER_VERSION }, { capabilities: { tools: {} } });
   const etsy = new EtsyClient(env, fetchImpl);
 
